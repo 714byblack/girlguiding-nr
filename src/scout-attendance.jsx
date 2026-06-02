@@ -37,6 +37,8 @@ export default function ScoutAttendance() {
   const [searchResult, setSearchResult] = useState(null);
   const [confirmed, setConfirmed] = useState(null);
   const [activityDate, setActivityDate] = useState(new Date().toISOString().split("T")[0]);
+  const [viewDate, setViewDate] = useState(new Date().toISOString().split("T")[0]);
+  const unsubAttendanceRef = useRef(null);
   const [activityName, setActivityName] = useState("กิจกรรมผู้บำเพ็ญประโยชน์");
   const [dragOver, setDragOver] = useState(false);
   const [importError, setImportError] = useState("");
@@ -55,13 +57,21 @@ export default function ScoutAttendance() {
       setStudents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-    const unsub2 = onSnapshot(collection(db, "attendance"), (snap) => {
+    return () => { unsub1(); };
+  }, []);
+
+  // ── Listen to attendance by date ──
+  useEffect(() => {
+    if (unsubAttendanceRef.current) unsubAttendanceRef.current();
+    const colName = "attendance_" + viewDate;
+    const unsub = onSnapshot(collection(db, colName), (snap) => {
       const map = {};
       snap.docs.forEach(d => { map[d.id] = d.data(); });
       setAttendance(map);
     });
-    return () => { unsub1(); unsub2(); };
-  }, []);
+    unsubAttendanceRef.current = unsub;
+    return () => unsub();
+  }, [viewDate]);
 
   // ── Check-in ──
   const handleSearch = () => {
@@ -74,7 +84,7 @@ export default function ScoutAttendance() {
   };
   const handleConfirmAttendance = async (s) => {
     const rec = { ...s, time: new Date().toLocaleTimeString("th-TH"), date: activityDate };
-    await setDoc(doc(db, "attendance", s.studentId), rec);
+    await setDoc(doc(db, "attendance_" + activityDate, s.studentId), rec);
     setConfirmed(s);
     setSearch("");
     setSearchResult(null);
@@ -117,8 +127,8 @@ export default function ScoutAttendance() {
     XLSX.writeFile(wb, "แบบฟอร์มนำเข้านักเรียน.xlsx");
   };
   const downloadReport = () => {
-    const rows = [["ชื่อ","สกุล","เลขประจำตัว","หมู่ผู้บำเพ็ญ","ระดับชั้น","สถานะ","เวลาลงชื่อ"]];
-    students.forEach(s => { const r = attendance[s.studentId]; rows.push([s.firstName,s.lastName,s.studentId,s.troop,s.grade,r?"มา":"ขาด",r?.time||"-"]); });
+    const rows = [["ชื่อ","สกุล","เลขประจำตัว","หมู่ผู้บำเพ็ญ","ระดับชั้น","สถานะ","เวลาลงชื่อ","วันที่"]];
+    students.forEach(s => { const r = attendance[s.studentId]; rows.push([s.firstName,s.lastName,s.studentId,s.troop,s.grade,r?"มา":"ขาด",r?.time||"-",r?.date||viewDate]); });
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"] = [{wch:16},{wch:16},{wch:14},{wch:18},{wch:12},{wch:8},{wch:12}];
     const wb = XLSX.utils.book_new();
@@ -146,8 +156,8 @@ export default function ScoutAttendance() {
       await setDoc(doc(db, "students", studentId), { firstName, lastName, studentId, troop, grade });
       await deleteDoc(doc(db, "students", oldId));
       if (attendance[oldId]) {
-        await setDoc(doc(db, "attendance", studentId), { ...attendance[oldId], studentId });
-        await deleteDoc(doc(db, "attendance", oldId));
+        await setDoc(doc(db, "attendance_" + viewDate, studentId), { ...attendance[oldId], studentId });
+        await deleteDoc(doc(db, "attendance_" + viewDate, oldId));
       }
     } else {
       await updateDoc(doc(db, "students", oldId), { firstName, lastName, troop, grade });
@@ -159,22 +169,22 @@ export default function ScoutAttendance() {
   const deleteStudent = async (id) => {
     if (!confirm("ลบนักเรียนคนนี้?")) return;
     await deleteDoc(doc(db, "students", id));
-    await deleteDoc(doc(db, "attendance", id)).catch(() => {});
+    await deleteDoc(doc(db, "attendance_" + viewDate, id)).catch(() => {});
   };
 
   // ── Toggle attendance ──
   const toggleAttendance = async (s) => {
     if (attendance[s.studentId]) {
-      await deleteDoc(doc(db, "attendance", s.studentId));
+      await deleteDoc(doc(db, "attendance_" + viewDate, s.studentId));
     } else {
-      await setDoc(doc(db, "attendance", s.studentId), { ...s, time: new Date().toLocaleTimeString("th-TH") + " (Admin)", date: activityDate });
+      await setDoc(doc(db, "attendance_" + viewDate, s.studentId), { ...s, time: new Date().toLocaleTimeString("th-TH") + " (Admin)", date: viewDate });
     }
   };
 
   // ── Reset attendance ──
   const resetAttendance = async () => {
     if (!confirm("ล้างข้อมูลการเช็คชื่อทั้งหมด?")) return;
-    const snap = await getDocs(collection(db, "attendance"));
+    const snap = await getDocs(collection(db, "attendance_" + viewDate));
     const batch = writeBatch(db);
     snap.docs.forEach(d => batch.delete(d.ref));
     await batch.commit();
@@ -331,9 +341,13 @@ export default function ScoutAttendance() {
         {/* ── SUMMARY ── */}
         {!loading && view===VIEW.SUMMARY && (
           <div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
               <h2 style={{ fontSize:20, fontWeight:700 }}>📊 สรุปการเข้าร่วมกิจกรรม</h2>
               <button className="btn btn-success" onClick={downloadReport} style={{ fontSize:13, padding:"8px 16px" }}>⬇️ Excel</button>
+            </div>
+            <div className="card" style={{ marginBottom:16, display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:14, color:"#94a3b8", whiteSpace:"nowrap" }}>📅 ดูวันที่:</span>
+              <input className="input-field" type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value)} style={{ flex:1 }} />
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:20 }}>
               <div className="stat-card"><div style={{ fontSize:32, fontWeight:800, color:"#4ade80" }}>{present.length}</div><div style={{ fontSize:13, color:"#64748b", marginTop:4 }}>มา</div></div>
