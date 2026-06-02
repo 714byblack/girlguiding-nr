@@ -336,10 +336,48 @@ export default function ScoutAttendance() {
                 </div>
               )}
             </div>
-            <div style={{ display:"flex", gap:14, marginTop:20 }}>
-              <div className="card" style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:28, fontWeight:800, color:"#4ade80" }}>{present.length}</div><div style={{ fontSize:13, color:"#64748b" }}>มาแล้ว</div></div>
-              <div className="card" style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:28, fontWeight:800, color:"#f87171" }}>{absent.length}</div><div style={{ fontSize:13, color:"#64748b" }}>ยังไม่มา</div></div>
-              <div className="card" style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:28, fontWeight:800, color:"#60a5fa" }}>{students.length}</div><div style={{ fontSize:13, color:"#64748b" }}>ทั้งหมด</div></div>
+            <div style={{ marginTop:20 }}>
+              <div style={{ display:"flex", gap:12, marginBottom:12 }}>
+                <div className="card" style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:28, fontWeight:800, color:"#4ade80" }}>{present.length}</div><div style={{ fontSize:13, color:"#64748b" }}>มาแล้ว</div></div>
+                <div className="card" style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:28, fontWeight:800, color:"#f87171" }}>{absent.length}</div><div style={{ fontSize:13, color:"#64748b" }}>ยังไม่มา</div></div>
+                <div className="card" style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:28, fontWeight:800, color:"#60a5fa" }}>{students.length}</div><div style={{ fontSize:13, color:"#64748b" }}>ทั้งหมด</div></div>
+              </div>
+              {students.length > 0 && (() => {
+                const byGrade = {};
+                students.forEach(s => {
+                  const g = s.grade || "ไม่ระบุ";
+                  if (!byGrade[g]) byGrade[g] = { present:0, absent:0, total:0 };
+                  byGrade[g].total++;
+                  if (attendance[s.studentId]) byGrade[g].present++;
+                  else byGrade[g].absent++;
+                });
+                const grades = Object.keys(byGrade).sort();
+                return (
+                  <div className="card" style={{ padding:"14px 16px" }}>
+                    <div style={{ fontWeight:700, fontSize:14, marginBottom:10, color:"#94a3b8" }}>แยกตามชั้นเรียน</div>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:14 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign:"left", padding:"6px 10px", background:"rgba(255,255,255,.07)", color:"#94a3b8", fontSize:13 }}>ชั้น</th>
+                          <th style={{ textAlign:"center", padding:"6px 10px", background:"rgba(255,255,255,.07)", color:"#4ade80", fontSize:13 }}>มาแล้ว</th>
+                          <th style={{ textAlign:"center", padding:"6px 10px", background:"rgba(255,255,255,.07)", color:"#f87171", fontSize:13 }}>ยังไม่มา</th>
+                          <th style={{ textAlign:"center", padding:"6px 10px", background:"rgba(255,255,255,.07)", color:"#60a5fa", fontSize:13 }}>ทั้งหมด</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grades.map(g => (
+                          <tr key={g}>
+                            <td style={{ padding:"7px 10px", borderBottom:"1px solid rgba(255,255,255,.06)", fontWeight:600 }}>{g}</td>
+                            <td style={{ padding:"7px 10px", borderBottom:"1px solid rgba(255,255,255,.06)", textAlign:"center", color:"#4ade80", fontWeight:700 }}>{byGrade[g].present}</td>
+                            <td style={{ padding:"7px 10px", borderBottom:"1px solid rgba(255,255,255,.06)", textAlign:"center", color:"#f87171", fontWeight:700 }}>{byGrade[g].absent}</td>
+                            <td style={{ padding:"7px 10px", borderBottom:"1px solid rgba(255,255,255,.06)", textAlign:"center", color:"#60a5fa", fontWeight:700 }}>{byGrade[g].total}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
